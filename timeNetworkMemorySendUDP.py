@@ -10,6 +10,9 @@ import socket
 import threading
 import time
 from tkinter import messagebox, scrolledtext  # 导入 scrolledtext 模块
+import pystray
+from PIL import Image
+import os
 
 
 class MemoryManager:
@@ -101,6 +104,9 @@ class ClockWindow(tk.Tk):
         self.bind("<B1-Motion>", self.on_motion)
         self.bind("<Button-3>", self.show_menu)
 
+        # 创建系统托盘图标
+        self.create_tray_icon()
+
         self.update_time()  # 每秒更新时间
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.position_near_mouse()  # 定位在鼠标附近
@@ -119,7 +125,95 @@ class ClockWindow(tk.Tk):
 
         self.mainloop()
 
-    # ------------------- 主窗口及公共方法 -------------------
+        # ------------------- 主窗口及公共方法 -------------------
+    def show_menu(self, event):
+        """显示主窗口右键菜单"""
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label="立即休眠", command=self.hibernate_system)
+        if self.sleep_prevented:
+            menu.add_command(label="允许休眠", command=self.set_allow_sleep)
+        else:
+            menu.add_command(label="阻止休眠", command=self.set_prevent_sleep)
+        if self.network_window:
+            menu.add_command(label="隐藏网速", command=self.close_network_window)
+        else:
+            menu.add_command(label="显示网速", command=self.open_network_window)
+        if self.memory_window:
+            menu.add_command(label="隐藏内存管理", command=self.close_memory_window)
+        else:
+            menu.add_command(label="显示内存管理", command=self.open_memory_window)
+        if self.packet_sender_window:
+            menu.add_command(label="隐藏数据包发送", command=self.close_packet_sender_window)
+        else:
+            menu.add_command(label="显示数据包发送", command=self.open_packet_sender_window)
+        auto_start_label = "禁用开机自启动" if self.is_auto_start_enabled() else "启用开机自启动"
+        menu.add_command(label=auto_start_label, command=self.toggle_auto_start)
+        menu.add_command(label="隐藏所有窗口", command=self.hide_all_windows)  # 添加隐藏选项
+        menu.add_command(label="关于此软件", command=self.show_about)
+        menu.add_command(label="更新日志", command=self.show_changelog)
+        menu.add_separator()
+        menu.add_command(label="退出全部程序", command=self.on_closing)
+        menu.post(event.x_root, event.y_root)
+
+    # ------------------- 系统托盘图标相关方法 -------------------
+    def create_tray_icon(self):
+        """创建系统托盘图标"""
+        icon_path = 'clock.png'
+        if not os.path.exists(icon_path):
+            image = Image.new('RGB', (64, 64), color='yellow')
+        else:
+            image = Image.open(icon_path)
+
+        menu = pystray.Menu(
+            pystray.MenuItem("显示", self.show_all_windows),
+            pystray.MenuItem("退出", self.on_closing)
+        )
+
+        self.tray_icon = pystray.Icon("ClockWindow", image, "多功能数字时钟", menu)
+        # self.tray_icon.on_click = lambda icon, query: self.show_all_windows(icon, query)
+        # self.tray_icon.on_double_click = lambda icon, item: self.show_all_windows(icon, item)
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_all_windows(self):
+        print("show_all_windows called")  # 调试信息
+        self.deiconify()
+        if self.network_window:
+            self.network_window.deiconify()
+        if self.memory_window:
+            self.memory_window.deiconify()
+        if self.ip_window:
+            self.ip_window.deiconify()
+        if self.packet_sender_window:
+            self.packet_sender_window.deiconify()
+
+    def hide_all_windows(self):
+        """隐藏所有窗口"""
+        self.withdraw()  # 隐藏主窗口
+        if self.network_window:
+            self.network_window.withdraw()
+        if self.memory_window:
+            self.memory_window.withdraw()
+        if self.ip_window:
+            self.ip_window.withdraw()
+        if self.packet_sender_window:
+            self.packet_sender_window.withdraw()
+
+
+    def on_closing(self):
+        """退出程序时关闭所有窗口和托盘图标"""
+        self.restore_sleep()
+        if self.network_window:
+            self.network_window.destroy()
+        if self.memory_window:
+            self.memory_window.destroy()
+        if self.ip_window:
+            self.ip_window.destroy()
+        if self.packet_sender_window:
+            self.close_packet_sender_window()
+        self.memory_manager.reset_memory()
+        self.tray_icon.stop()  # 停止托盘图标
+        self.destroy()
+
     def position_near_mouse(self):
         """将主窗口定位到鼠标附近"""
         mouse_x = self.winfo_pointerx()
@@ -183,33 +277,6 @@ class ClockWindow(tk.Tk):
         y = event.y_root - self.y
         self.geometry(f"+{x}+{y}")
 
-    def show_menu(self, event):
-        """显示主窗口右键菜单"""
-        menu = tk.Menu(self, tearoff=0)
-        menu.add_command(label="立即休眠", command=self.hibernate_system)
-        if self.sleep_prevented:
-            menu.add_command(label="允许休眠", command=self.set_allow_sleep)
-        else:
-            menu.add_command(label="阻止休眠", command=self.set_prevent_sleep)
-        if self.network_window:
-            menu.add_command(label="隐藏网速", command=self.close_network_window)
-        else:
-            menu.add_command(label="显示网速", command=self.open_network_window)
-        if self.memory_window:
-            menu.add_command(label="隐藏内存管理", command=self.close_memory_window)
-        else:
-            menu.add_command(label="显示内存管理", command=self.open_memory_window)
-        if self.packet_sender_window:
-            menu.add_command(label="隐藏数据包发送", command=self.close_packet_sender_window)
-        else:
-            menu.add_command(label="显示数据包发送", command=self.open_packet_sender_window)
-        auto_start_label = "禁用开机自启动" if self.is_auto_start_enabled() else "启用开机自启动"
-        menu.add_command(label=auto_start_label, command=self.toggle_auto_start)
-        menu.add_command(label="关于此软件", command=self.show_about)
-        menu.add_command(label="更新日志", command=self.show_changelog)
-        menu.add_separator()  # 横线
-        menu.add_command(label="退出全部程序", command=self.on_closing)
-        menu.post(event.x_root, event.y_root)
 
     def set_prevent_sleep(self):
         """设置阻止系统休眠"""
@@ -254,8 +321,8 @@ class ClockWindow(tk.Tk):
     def show_about(self):
         """显示关于信息"""
         about_text = (
-            "多功能数字时钟 v5.6\n"
-            "作者：d770（由 d770本人 & Grok3 & ChatGPT4o 创作）\n"
+            "多功能数字时钟 V6.0\n"
+            "作者：d770（由 d770本人 & Grok3(主) & ChatGPT4o 创作）\n"
             "功能：\n"
             "- 显示时间 & 可选网速显示 (时间每秒校对一次，网速可自定义刷新间隔)\n"
             "- 可选内存管理功能\n"
@@ -268,8 +335,10 @@ class ClockWindow(tk.Tk):
             "- 开机自启动选项 (默认关闭)\n"
             "- 鼠标悬停显示 IP 地址（悬浮窗口）\n"
             "- 启动时窗口显示在鼠标附近\n"
+            "- 新增软件图标和可自定义系统托盘图标\n"
+            "\t命名规则必须为 clock.png\n"
             "创建日期：2025年3月25日\n"
-            "最后更新日期：2025年3月27日\n"
+            "最后更新日期：2025年3月29日\n"
             "\t感想：AI编程还是不太理想，费时还学不到东西，\n"
             "\t还得自己会，自己写才写的顺"
         )
@@ -278,25 +347,61 @@ class ClockWindow(tk.Tk):
     # 更新日志
     def show_changelog(self):
         changelog_text = """
-        V5.6---日期：2025年3月27日 
-        修复了点击'立即休眠'后会改变'阻止系统休眠'的状态。
-        ........(很多，其他的不太想写了)
+        V6.0---D250329\n
+        - 更新了更新日志\n
+        - 更新了关于说明\n
+        - 优化了说明类文本的可读性和一致性\n
+        - 优化了代码的可读性\n
+        - 优化了线程问题\n
+        
+        -------------------------------------------\n
+        V5.9---D250328\n
+        - 修改了应用图标\n
+        - 添加了对 clock.png 文件的识别，\n
+        \t需要在同一目录下才可以被识别，\n
+        \t如果有可用的 clock.png 图片，则将图片用于系统托盘处当作软件图标，\n
+        \t若没有则显示为纯黄色背景图标\n
+        false---可通过鼠标左击系统托盘图标来快速打开已隐藏的工具窗口，可以节省步骤\n
+        \treason---系统级调用未能实现\n
+        
+        -------------------------------------------\n
+        V5.8---D250328\n
+        - 修改了代码逻辑\n
+        \t将使用ico格式的代码模块替换为使用png格式的代码\n
+        false---修改了系统任务栏的图标显示效果(更换了新的图标)\n
+        \treason---需要手动配置 .png 文件\n
+        
+        ---------------------------------------------\n
+        V5.7---D250328\n
+        - 添加了可以隐藏所有窗口的功能\n
+        - 添加了任务栏选项的功能，同时可以在后台保证软件不被系统阻塞\n
+        - 修改了代码逻辑和显示效果\n
+        
+        -------------------------------------------\n
+        V5.6---D250327\n
+        - 修复了点击'立即休眠'后会改变'阻止系统休眠'的状态\n
+        - ........(很多，很多........)\n
+        
         ------------------------------------------\n 
-        V5.0---日期：2025年3月26日 
-        新功能：  \n 
-        添加了向指定 IP 地址持续发送 UDP 数据包的功能，支持 MB/GB 单位和自定义发送频率。\n 
-        实现了鼠标悬停在网速显示窗口时显示本机 IP 地址的功能。  \n 
-        软件启动时，窗口会自动显示在鼠标附近。\n 
-        改进：  \n 
-        优化了网速显示的刷新间隔，用户可以自定义刷新间隔。  \n 
-        改进了内存管理功能，提供更详细的内存使用信息。  \n 
-        增强了软件的稳定性，减少了崩溃的可能性。\n 
-        修复的 bug：  \n 
-        修复了在某些情况下，软件无法阻止系统休眠的问题。  \n 
-        修复了网速显示不准确的 bug。  \n 
-        修复了内存管理功能中的一个内存泄漏问题。\n 
+        V5.0---D250326\n
+        - 新功能：\n 
+        - 添加了向指定 IP 地址持续发送 UDP 数据包的功能\n
+        - 支持 MB/GB 单位和自定义发送频率\n 
+        false---支持多个IP输入和同时发送\n
+        \treason---发送数据逻辑较为复杂，以个人能力，暂时放弃\n
+        - 实现了鼠标悬停在网速显示窗口时显示本机 IP 地址的功能\n 
+        - 软件启动时，窗口会自动显示在鼠标附近\n 
+        - 改进：\n 
+        - 优化了网速显示的刷新间隔，用户可以自定义刷新间隔\n 
+        - 改进了内存管理功能，提供更详细的内存使用信息\n 
+        - 增强了软件的稳定性，减少了崩溃的可能性\n 
+        - 修复的 bug：\n 
+        - 修复了在某些情况下，软件无法阻止系统休眠的问题\n 
+        - 修复了网速显示不准确的 bug\n 
+        - 修复了内存管理功能中的一个内存泄漏问题\n 
+        
         -----------------------------------------\n 
-        V0.0-V4.9\n 
+        V0.0->V4.9---D250325\n
         孩子太小了，不记得事情了......\n 
         """
         # 弹出窗口显示更新日志
