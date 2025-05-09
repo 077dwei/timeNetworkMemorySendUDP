@@ -1,3 +1,4 @@
+import subprocess
 import tkinter as tk
 import psutil
 from datetime import datetime
@@ -14,7 +15,7 @@ import pystray
 from PIL import Image
 import os
 
-
+# timeNetworkMemorySendUDP.py
 class MemoryManager:
     """使用 bytearray 模拟内存管理的类"""
 
@@ -96,7 +97,7 @@ class ClockWindow(tk.Tk):
 
         # 创建时间显示标签
         self.time_label = tk.Label(self, text="00:00:00",
-                                   font=("Helvetica", 14), fg="yellow", bg="black")
+                                   font=("Helvetica", 15), fg="yellow", bg="black")
         self.time_label.pack(expand=True)
 
         # 绑定拖动和右键菜单事件
@@ -117,8 +118,8 @@ class ClockWindow(tk.Tk):
         self.start_time = 0
         self.lock = threading.Lock()
 
-        # 网速刷新间隔（单位毫秒），默认700ms
-        self.network_refresh_interval = 700
+        # 网速刷新间隔（单位毫秒），默认1000ms
+        self.network_refresh_interval = 1000
 
         # 启动定时器，定期检查并恢复“阻止系统休眠”状态
         self.after(5000, self.prevent_sleep_if_needed)
@@ -149,6 +150,7 @@ class ClockWindow(tk.Tk):
         auto_start_label = "禁用开机自启动" if self.is_auto_start_enabled() else "启用开机自启动"
         menu.add_command(label=auto_start_label, command=self.toggle_auto_start)
         menu.add_command(label="隐藏所有窗口", command=self.hide_all_windows)  # 添加隐藏选项
+        menu.add_command(label="打开程序位置", command=self.show_file_local)  # 打开文件所在位置
         menu.add_command(label="关于此软件", command=self.show_about)
         menu.add_command(label="更新日志", command=self.show_changelog)
         menu.add_separator()
@@ -216,8 +218,8 @@ class ClockWindow(tk.Tk):
 
     def position_near_mouse(self):
         """将主窗口定位到鼠标附近"""
-        mouse_x = self.winfo_pointerx()
-        mouse_y = self.winfo_pointery()
+        mouse_x = self.winfo_pointerx() - 50
+        mouse_y = self.winfo_pointery() - 25
         window_width = 85
         window_height = 30
         screen_width = self.winfo_screenwidth()
@@ -318,10 +320,27 @@ class ClockWindow(tk.Tk):
         self.set_auto_start(not current_state)
         messagebox.showinfo("提示", f"开机自启动已{'启用' if not current_state else '禁用'}")
 
+    def show_file_local(self):
+        # print("位置")
+        # 获取当前程序文件的绝对路径
+        if getattr(sys, 'frozen', False):
+            # 如果是通过 PyInstaller 打包后的 exe
+            file_path = sys.executable
+        else:
+            # 普通 Python 脚本运行
+            file_path = os.path.abspath(__file__)
+
+        # 获取目录路径
+        folder = os.path.dirname(file_path)
+
+        # 在资源管理器中打开目录，并选中该文件
+        subprocess.run(f'explorer /select,"{file_path}"')
+
+
     def show_about(self):
         """显示关于信息"""
         about_text = (
-            "多功能数字时钟 V6.0\n"
+            "多功能数字时钟 V6.2.6\n" # 每次更新时更改 1/2
             "作者：d770（由 d770本人 & Grok3(主) & ChatGPT4o 创作）\n"
             "功能：\n"
             "- 显示时间 & 可选网速显示 (时间每秒校对一次，网速可自定义刷新间隔)\n"
@@ -338,15 +357,58 @@ class ClockWindow(tk.Tk):
             "- 新增软件图标和可自定义系统托盘图标\n"
             "\t命名规则必须为 clock.png\n"
             "创建日期：2025年3月25日\n"
-            "最后更新日期：2025年3月29日\n"
+            "最后更新日期：详见更新日志\n"
             "\t感想：AI编程还是不太理想，费时还学不到东西，\n"
-            "\t还得自己会，自己写才写的顺"
+            "\t还得自己会，自己写才写的顺\n"
+            "AI编程截止日期：2025年4月21日\n"
         )
         messagebox.showinfo("关于", about_text)
 
     # 更新日志
-    def show_changelog(self):
+    def show_changelog(self): # 每次更新时更改 2/2
         changelog_text = """
+        V6.2.6---D250505\n
+        - 调整了打开主窗口显示在鼠标附近的默认位置，\n
+        \t防止鼠标在屏幕边缘时主窗口显示在鼠标触及不到的地方\n
+        
+        ===========================================\n
+        V6.2.5---D250503\n
+        - 调整了多个窗口的默认位置，防止互相遮挡\n
+        
+        =======================================\n
+        V6.2.4---D250503\n
+        - 优化了时钟的性能问题\n
+        - 更改了网速窗口默认位置\n
+        
+        
+        =======================================\n
+        V6.2.3---D250502\n
+        - 更改了网速默认刷新时间为1000ms，\n
+        \t为了配合计算每秒速率的准确性\n
+        - 更换了之前的打包方式\n
+        
+        
+        ======================================\n
+        V6.2.2---D250502\n
+        - 对网速显示窗口进行'瘦身'\n
+        
+        ======================================\n
+        V6.2.1---D250502\n
+        - 优化了数字时钟同步时间的频率\n
+        \t从每1000ms同步一次改为100ms同步一次，\n
+        \t解决了时间不完全同步，时间不准，\n
+        \t需要大概三分钟的时间才能和同步周期校验上的问题\n  
+        
+        ====================================\n
+        V6.2---D250501\n
+        - 增加了打开此程序目录的功能\n
+        - 优化了打开内存管理的窗口位置\n
+        
+        ============================================\n
+        V6.1---D250421\n
+        - 优化了数字时钟的显示效果\n
+        
+        ============================================\n
         V6.0---D250329\n
         - 更新了更新日志\n
         - 更新了关于说明\n
@@ -435,7 +497,8 @@ class ClockWindow(tk.Tk):
         """每秒更新主窗口时间显示"""
         time_str = datetime.now().strftime("%H:%M:%S")
         self.time_label.config(text=time_str)
-        self.after(1000, self.update_time)
+        self.after(150, self.update_time)
+
 
     def get_ip_address(self):
         """获取本机 IP 地址"""
@@ -464,7 +527,8 @@ class ClockWindow(tk.Tk):
         packet_width = 300
         packet_height = 180
         packet_x = clock_x + clock_width + 5
-        packet_y = clock_y
+        # packet_y = clock_y
+        packet_y = clock_y + 35
         self.packet_sender_window.geometry(f"{packet_width}x{packet_height}+{packet_x}+{packet_y}")
 
         # 创建输入区域：目标 IP、数据包大小（及单位）、发送间隔
@@ -614,9 +678,11 @@ class ClockWindow(tk.Tk):
         clock_y = self.winfo_y()
         clock_height = self.winfo_height()
         net_width = 230
-        net_height = 35
-        net_x = clock_x - int(net_width / 3.5)
-        net_y = clock_y + clock_height + 8
+        net_height = 31
+        # net_x = clock_x - int(net_width / 3.5)
+        # net_y = clock_y + clock_height + 8
+        net_x = clock_x + 95
+        net_y = clock_y - 1
         self.network_window.geometry(f"{net_width}x{net_height}+{net_x}+{net_y}")
 
         self.speed_label = tk.Label(self.network_window,
@@ -793,8 +859,10 @@ class ClockWindow(tk.Tk):
         clock_y = self.winfo_y()
         mem_width = 300
         mem_height = 150
-        mem_x = clock_x - int(mem_width / 3)
-        mem_y = clock_y - mem_height - 5
+        # mem_x = clock_x - int(mem_width / 3)
+        # mem_y = clock_y - mem_height - 1
+        mem_x = clock_x - mem_width - 5
+        mem_y = clock_y + 35
         self.memory_window.geometry(f"{mem_width}x{mem_height}+{mem_x}+{mem_y}")
 
         self.mem_usage_label = tk.Label(self.memory_window,
